@@ -1,6 +1,7 @@
 import appex
 import photos
 import dialogs
+import ui
 from PIL import Image
 from collections import defaultdict, namedtuple
 
@@ -29,11 +30,8 @@ def choose_assets():
   search = dialogs.input_alert('What is your album called?')
 
   albums = photos.get_albums()
-  albums = list(
-    sorted(
-      list([a for a in albums if len(a.assets) > 0 and search in a.title]),
-      key=lambda a: a.end_date or '1970-01-01',
-      reverse=True))
+  albums = list([a for a in albums if search in a.title])
+  albums = list([a for a in albums if get_album_ends(a)[0] is not None])
 
   if len(albums) == 0:
     dialogs.hud_alert('No album found!', icon='error')
@@ -43,8 +41,8 @@ def choose_assets():
     {
       'id': a.local_id,
       'index': i,
-      'title': "{0} ({1})".format(a.title, a.end_date),
-      #'image': a.assets[0].get_image(),
+      'title': "{0} ({1})".format(a.title, get_album_dates(a)[0].strftime('%b %d, %Y')),
+      #'image': get_asset_thumb(get_album_ends(a)[0]),
       'accessory_type': 'checkmark'
     } for (i, a) in enumerate(albums)
   ]
@@ -87,6 +85,27 @@ def process_assets(assets):
           processed_assets.deletable.append(old_photo)
 
   return processed_assets
+
+
+def get_album_ends(album: photos.AssetCollection):
+  assets = album.assets
+  if len(assets) == 0:
+    return (None, None)
+  else:
+    return (assets[0], assets[-1])
+
+
+def get_album_dates(album: photos.AssetCollection):
+  # https://forum.omz-software.com/topic/3235/photos-module-album-start-date-end-date/2
+  ends = get_album_ends(album)
+  return (getattr(ends[0], 'creation_date'), getattr(ends[-1], 'creation_date'))
+
+
+def get_asset_thumb(asset: photos.Asset):
+  # from https://forum.omz-software.com/topic/4599/heic-photo-file-issues-in-ios11/3
+  pngdata = ui.Image.from_data(asset.get_image_data().getvalue()).to_png()
+  pil_image = Image.open(io.BytesIO(pngdata))
+  return pil_image
 
 
 if __name__ == '__main__':
