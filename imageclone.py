@@ -2,7 +2,7 @@ import appex
 import photos
 import dialogs
 from PIL import Image
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 #import re
 
@@ -13,7 +13,12 @@ def main():
     assets = choose_assets()
     if assets is None: return
 
-    process_assets(assets)
+    assets = process_assets(assets)
+
+    if len(assets.deletable) > 0:
+      photos.batch_delete(assets.deletable)
+
+    dialogs.hud_alert("{0} photos updated".format(len(assets.new)))
   else:
     images = appex.get_attachments()
     print(images)
@@ -31,7 +36,7 @@ def choose_assets():
       reverse=True))
 
   if len(albums) == 0:
-    dialogs.hud_alert('No album found!')
+    dialogs.hud_alert('No album found!', icon='error')
     return None
 
   album_names = [
@@ -54,7 +59,8 @@ def choose_assets():
 
 
 def process_assets(assets):
-  to_delete = []
+  ProcessedAssets = namedtuple('ProcessedAssets', ['new', 'deletable'])
+  processed_assets = ProcessedAssets(new=[], deletable=[])
 
   groups = defaultdict(list)
   for asset in assets:
@@ -66,8 +72,6 @@ def process_assets(assets):
     k = tuple[1]
     new_photo = None
     old_photo = None
-    print(j.location)
-    print(k.location)
     if j.location is None and k.location is not None:
       new_photo = j
       old_photo = k
@@ -75,15 +79,14 @@ def process_assets(assets):
       new_photo = k
       old_photo = j
     if new_photo is not None and old_photo is not None:
-      print(new_photo)
       if new_photo.can_edit_properties:
         new_photo.location = old_photo.location
-        print(new_photo.location)
-        if new_photo.location and old_photo.can_delete:
-          to_delete.append(old_photo)
+        new_photo.favorite = old_photo.favorite
+        processed_assets.new.append(new_photo)
+        if old_photo.can_delete:
+          processed_assets.deletable.append(old_photo)
 
-  if len(to_delete) > 0:
-    photos.batch_delete(to_delete)
+  return processed_assets
 
 
 if __name__ == '__main__':
